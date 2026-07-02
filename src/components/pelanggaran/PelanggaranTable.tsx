@@ -18,6 +18,19 @@ interface PelanggaranTableProps {
     pageSize: number;
 }
 
+const getStoragePathFromUrl = (url: string) => {
+    try {
+        const parts = url.split('/fotopelanggaran/');
+        if (parts.length > 1) {
+            return parts[parts.length - 1];
+        }
+        return null;
+    } catch (e) {
+        console.error("Gagal mengekstrak path storage:", e);
+        return null;
+    }
+};
+
 export default function PelanggaranTable({ violations, onEdit, onDelete, pageSize }: PelanggaranTableProps) {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
@@ -97,11 +110,46 @@ export default function PelanggaranTable({ violations, onEdit, onDelete, pageSiz
         setDeleteDialogOpen(true);
     };
 
-    const handleConfirmDelete = () => {
-        if (selectedId !== null) {
+    const handleConfirmDelete = async () => {
+        if (selectedId === null) return;
+
+        try {
+            // 2. Cari data pelanggaran yang ingin dihapus berdasarkan selectedId
+            const violationToDelete = localViolations.find(v => v.id === selectedId);
+
+            // 3. Jika data ditemukan dan memiliki foto di storage, hapus fotonya dulu
+            if (violationToDelete && violationToDelete.url) {
+                const filePath = getStoragePathFromUrl(violationToDelete.url);
+                if (filePath) {
+                    const { error: storageError } = await supabase.storage
+                        .from('fotopelanggaran')
+                        .remove([filePath]);
+
+                    if (storageError) {
+                        console.error("Gagal menghapus file dari storage:", storageError.message);
+                    } else {
+                        console.log("Foto lama berhasil dibersihkan dari storage Supabase");
+                    }
+                }
+            }
+
+            // 4. Proses hapus baris data dari database (Kode bawaan kamu)
+            const { error } = await supabase
+                .from("pelanggaran")
+                .delete()
+                .eq("id", selectedId);
+
+            if (error) throw error;
+
+            // 5. Update state lokal & panggil callback parent (Kode bawaan kamu)
+            setLocalViolations((prev) => prev.filter((v) => v.id !== selectedId));
             onDelete(selectedId);
             setDeleteDialogOpen(false);
             setSelectedId(null);
+
+        } catch (error: any) {
+            console.error("Error deleting violation:", error.message);
+            alert("Gagal menghapus data pelanggaran.");
         }
     };
 

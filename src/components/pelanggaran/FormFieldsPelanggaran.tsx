@@ -8,6 +8,7 @@ import { useMemo, useState, useRef } from "react";
 import type { Siswa } from "@/types";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { MasterPelanggaran } from "./AddPelanggaranDialog";
 
 const TINGKAT_OPTIONS = ["Berat", "Sedang", "Ringan"] as const;
 const STATUS_OPTIONS = ["Aktif", "Selesai"] as const;
@@ -39,6 +40,7 @@ interface FormFieldsPelanggaranProps {
     showSiswaFields?: boolean;
     showOptionalFields?: boolean;
     onCameraCapture?: (base64Image: string) => void;
+    masterPelanggaranList?: MasterPelanggaran[];
 }
 
 export function FormFieldsPelanggaran({
@@ -52,6 +54,7 @@ export function FormFieldsPelanggaran({
     showSiswaFields = true,
     showOptionalFields = true,
     onCameraCapture,
+    masterPelanggaranList = [],
 }: FormFieldsPelanggaranProps) {
 
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -159,25 +162,44 @@ export function FormFieldsPelanggaran({
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. JENIS PELANGGARAN */}
                 <div className="space-y-2">
-                    <Label htmlFor="jenis" className="text-sm font-medium">
-                        Jenis Pelanggaran <span className="text-red-500">*</span>
+                    {/* Mengubah <label> menjadi <Label> dari Shadcn */}
+                    <Label htmlFor="jenis_pelanggaran" className="text-sm font-medium">
+                        Jenis Pelanggaran
                     </Label>
-                    <Input
-                        id="jenis"
-                        value={form.jenis_pelanggaran}
-                        onChange={(e) => onChange('jenis_pelanggaran', e.target.value)}
-                        placeholder="Contoh: Terlambat, Tidak berseragam"
-                        className="w-full"
-                    />
+                    <Select
+                        value={form.jenis_pelanggaran || undefined}
+                        onValueChange={(v) => onChange('jenis_pelanggaran', v)}
+                    >
+                        <SelectTrigger id="jenis_pelanggaran" className="w-full h-10 bg-background">
+                            <SelectValue placeholder="-- Pilih Pelanggaran --" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {masterPelanggaranList && masterPelanggaranList.length > 0 ? (
+                                masterPelanggaranList.map((item) => (
+                                    <SelectItem key={item.id} value={item.nama_pelanggaran}>
+                                        {item.nama_pelanggaran}
+                                    </SelectItem>
+                                ))
+                            ) : (
+                                <div className="p-2 text-sm text-gray-500 text-center">Tidak ada data</div>
+                            )}
+                        </SelectContent>
+                    </Select>
                 </div>
 
+                {/* 2. TINGKAT PELANGGARAN */}
                 <div className="space-y-2">
                     <Label htmlFor="tingkat" className="text-sm font-medium">
                         Tingkat Pelanggaran <span className="text-red-500">*</span>
                     </Label>
-                    <Select value={form.tingkat} onValueChange={(v) => onChange('tingkat', v)}>
-                        <SelectTrigger id="tingkat" className="w-full">
+                    <Select
+                        value={form.tingkat || undefined}
+                        onValueChange={(v) => onChange('tingkat', v)}
+                        disabled={true}
+                    >
+                        <SelectTrigger id="tingkat" className="w-full h-10 bg-background">
                             <SelectValue placeholder="Pilih Tingkat Pelanggaran" />
                         </SelectTrigger>
                         <SelectContent>
@@ -189,165 +211,166 @@ export function FormFieldsPelanggaran({
                         </SelectContent>
                     </Select>
                 </div>
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="poin" className="text-sm font-medium">
-                        Poin <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                        id="poin"
-                        type="number"
-                        min="0"
-                        value={form.poin}
-                        onChange={(e) => onChange('poin', parseInt(e.target.value) || 0)}
-                        className="w-full"
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="poin" className="text-sm font-medium">
+                    Poin <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                    id="poin"
+                    type="number"
+                    min="0"
+                    value={form.poin}
+                    onChange={(e) => onChange('poin', parseInt(e.target.value) || 0)}
+                    className="w-full"
+                    disabled
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="tanggal" className="text-sm font-medium">
-                        Tanggal Pelanggaran <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                        id="tanggal"
-                        type="date"
-                        value={form.tanggal}
-                        onChange={(e) => onChange('tanggal', e.target.value)}
-                        className="w-full"
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="tanggal" className="text-sm font-medium">
+                    Tanggal Pelanggaran <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                    id="tanggal"
+                    type="date"
+                    value={form.tanggal}
+                    onChange={(e) => onChange('tanggal', e.target.value)}
+                    className="w-full"
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="waktu" className="text-sm font-medium">
-                        Waktu Pelanggaran <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                        id="waktu"
-                        type="time"
-                        value={form.waktu}
-                        onChange={(e) => onChange('waktu', e.target.value)}
-                        className="w-full"
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="waktu" className="text-sm font-medium">
+                    Waktu Pelanggaran <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                    id="waktu"
+                    type="time"
+                    value={form.waktu}
+                    onChange={(e) => onChange('waktu', e.target.value)}
+                    className="w-full"
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="lokasi" className="text-sm font-medium">
-                        Lokasi Pelanggaran <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                        id="lokasi"
-                        value={form.lokasi}
-                        onChange={(e) => onChange('lokasi', e.target.value)}
-                        placeholder="Contoh: Kelas, Lapangan"
-                        className="w-full"
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="lokasi" className="text-sm font-medium">
+                    Lokasi Pelanggaran <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                    id="lokasi"
+                    value={form.lokasi}
+                    onChange={(e) => onChange('lokasi', e.target.value)}
+                    placeholder="Contoh: Kelas, Lapangan"
+                    className="w-full"
+                />
+            </div>
 
-                <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="deskripsi" className="text-sm font-medium">
-                        Deskripsi Pelanggaran <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                        id="deskripsi"
-                        value={form.deskripsi}
-                        onChange={(e) => onChange('deskripsi', e.target.value)}
-                        placeholder="Contoh: Terlambat dikarenakan ban bocor"
-                        className="w-full"
-                    />
-                </div>
+            <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="deskripsi" className="text-sm font-medium">
+                    Deskripsi Pelanggaran <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                    id="deskripsi"
+                    value={form.deskripsi}
+                    onChange={(e) => onChange('deskripsi', e.target.value)}
+                    placeholder="Contoh: Terlambat dikarenakan ban bocor"
+                    className="w-full"
+                />
+            </div>
 
-                {showOptionalFields && (
-                    <>
-                        <div className="space-y-2">
-                            <Label htmlFor="tindakan" className="text-sm font-medium">
-                                Tindakan
-                            </Label>
-                            <Input
-                                id="tindakan"
-                                value={form.tindakan || ""}
-                                onChange={(e) => onChange('tindakan', e.target.value || null)}
-                                placeholder="Tindakan yang diambil"
-                                className="w-full"
-                            />
-                        </div>
+            {showOptionalFields && (
+                <>
+                    <div className="space-y-2">
+                        <Label htmlFor="tindakan" className="text-sm font-medium">
+                            Tindakan
+                        </Label>
+                        <Input
+                            id="tindakan"
+                            value={form.tindakan || ""}
+                            onChange={(e) => onChange('tindakan', e.target.value || null)}
+                            placeholder="Tindakan yang diambil"
+                            className="w-full"
+                        />
+                    </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="tanggal_tindak_lanjut" className="text-sm font-medium">
-                                Tanggal Tindak Lanjut
-                            </Label>
-                            <Input
-                                id="tanggal_tindak_lanjut"
-                                type="date"
-                                value={form.tanggal_tindak_lanjut || ""}
-                                onChange={(e) => onChange('tanggal_tindak_lanjut', e.target.value)}
-                                className="w-full"
-                            />
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="tanggal_tindak_lanjut" className="text-sm font-medium">
+                            Tanggal Tindak Lanjut
+                        </Label>
+                        <Input
+                            id="tanggal_tindak_lanjut"
+                            type="date"
+                            value={form.tanggal_tindak_lanjut || ""}
+                            onChange={(e) => onChange('tanggal_tindak_lanjut', e.target.value)}
+                            className="w-full"
+                        />
+                    </div>
 
-                        <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="catatan" className="text-sm font-medium">
-                                Catatan
-                            </Label>
-                            <Input
-                                id="catatan"
-                                value={form.catatan || ""}
-                                onChange={(e) => onChange('catatan', e.target.value)}
-                                placeholder="Contoh: Orang tua sudah dihubungi"
-                                className="w-full"
-                            />
-                        </div>
-                    </>
-                )}
+                    <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="catatan" className="text-sm font-medium">
+                            Catatan
+                        </Label>
+                        <Input
+                            id="catatan"
+                            value={form.catatan || ""}
+                            onChange={(e) => onChange('catatan', e.target.value)}
+                            placeholder="Contoh: Orang tua sudah dihubungi"
+                            className="w-full"
+                        />
+                    </div>
+                </>
+            )}
 
-                {/* --- SEKSI BUKTI FOTO MURNI KAMERA --- */}
-                <div className="space-y-2 md:col-span-2">
-                    <Label className="text-sm font-medium">
-                        Foto Bukti <span className="text-gray-500 text-xs">(Ambil via Kamera)</span>
-                    </Label>
+            {/* --- SEKSI BUKTI FOTO MURNI KAMERA --- */}
+            <div className="space-y-2 md:col-span-2">
+                <Label className="text-sm font-medium">
+                    Foto Bukti <span className="text-gray-500 text-xs">(Ambil via Kamera)</span>
+                </Label>
 
-                    {previewUrl ? (
-                        <div className="relative w-full h-64 border-2 border-gray-200 rounded-lg overflow-hidden">
-                            <Image
-                                src={previewUrl}
-                                alt="Preview Kamera"
-                                fill
-                                className="object-contain"
-                                unoptimized
-                            />
-                            <button
-                                type="button"
-                                onClick={onRemoveFile}
-                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition shadow-lg z-10"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
-                            {isCameraActive ? (
-                                <div className="flex flex-col gap-3 w-full max-w-md">
-                                    <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg border bg-black scale-x-[-1]" />
-                                    <div className="flex gap-2">
-                                        <Button type="button" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={capturePhoto}>
-                                            Jepret Foto
-                                        </Button>
-                                        <Button type="button" variant="outline" onClick={stopCamera}>
-                                            Matikan Kamera
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-center">
-                                    <Camera className="w-12 h-12 mx-auto text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-600 mb-3">Foto pelanggaran diambil langsung melalui kamera perangkat.</p>
-                                    <Button type="button" variant="secondary" onClick={startCamera} className="w-full max-w-xs">
-                                        Buka Kamera
+                {previewUrl ? (
+                    <div className="relative w-full h-64 border-2 border-gray-200 rounded-lg overflow-hidden">
+                        <Image
+                            src={previewUrl}
+                            alt="Preview Kamera"
+                            fill
+                            className="object-contain"
+                            unoptimized
+                        />
+                        <button
+                            type="button"
+                            onClick={onRemoveFile}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition shadow-lg z-10"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
+                        {isCameraActive ? (
+                            <div className="flex flex-col gap-3 w-full max-w-md">
+                                <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg border bg-black scale-x-[-1]" />
+                                <div className="flex gap-2">
+                                    <Button type="button" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={capturePhoto}>
+                                        Jepret Foto
+                                    </Button>
+                                    <Button type="button" variant="outline" onClick={stopCamera}>
+                                        Matikan Kamera
                                     </Button>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center">
+                                <Camera className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+                                <p className="text-sm text-gray-600 mb-3">Foto pelanggaran diambil langsung melalui kamera perangkat.</p>
+                                <Button type="button" variant="secondary" onClick={startCamera} className="w-full max-w-xs">
+                                    Buka Kamera
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

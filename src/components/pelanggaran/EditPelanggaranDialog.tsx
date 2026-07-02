@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import type { Pelanggaran } from "@/types";
 import { FormFieldsPelanggaran, PelanggaranFormData } from "@/components/pelanggaran/FormFieldsPelanggaran";
 import { supabase } from "@/lib/supabase";
+import { MasterPelanggaran } from "./AddPelanggaranDialog";
 
 interface EditPelanggaranDialogProps {
     open: boolean;
@@ -22,12 +23,29 @@ interface EditPelanggaranDialogProps {
     onUpdate: (violation: Pelanggaran) => void;
 }
 
+// Fungsi untuk mengambil path file dari URL public Supabase
+const getStoragePathFromUrl = (url: string) => {
+    try {
+        // Memotong URL untuk mendapatkan part setelah nama bucket '/fotopelanggaran/'
+        const parts = url.split('/fotopelanggaran/');
+        if (parts.length > 1) {
+            return parts[parts.length - 1];
+        }
+        return null;
+    } catch (e) {
+        console.error("Gagal ekstrak storage path:", e);
+        return null;
+    }
+};
+
 export default function EditPelanggaranDialog({
     open,
     onOpenChange,
     violation,
     onUpdate,
 }: EditPelanggaranDialogProps) {
+
+    const [MasterPelanggaranList, setMasterPelanggaranList] = useState<MasterPelanggaran[]>([]);
     const [form, setForm] = useState<PelanggaranFormData>({
         siswa_id: 0,
         jenis_pelanggaran: '',
@@ -44,11 +62,32 @@ export default function EditPelanggaranDialog({
         url: null,
     });
 
+    // Ambil data master pelanggaran saat dialog dibuka
+    useEffect(() => {
+        async function fetchMasterPelanggaran() {
+            try {
+                const { data, error } = await supabase
+                    .from('master_pelanggaran')
+                    .select('*');
+
+                if (error) throw error;
+                if (data) setMasterPelanggaranList(data);
+            } catch (error) {
+                console.error('Error fetching master_pelanggaran:', error);
+            }
+        }
+
+        if (open) {
+            fetchMasterPelanggaran();
+        }
+    }, [open]);
+
     // State tambahan untuk mengelola file jepretan kamera baru dan loading status
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
 
+    // Sinkronisasi data pelanggaran yang mau diedit ke dalam form
     useEffect(() => {
         if (violation) {
             setForm({
@@ -66,32 +105,60 @@ export default function EditPelanggaranDialog({
                 catatan: violation.catatan || null,
                 url: violation.url || null,
             });
-            // Set preview awal jika data pelanggaran lama memang sudah punya foto
             setPreviewUrl(violation.url || null);
         }
     }, [violation]);
 
     const handleChange = <K extends keyof PelanggaranFormData>(key: K, value: PelanggaranFormData[K]) => {
-        setForm(prev => ({
-            ...prev,
-            [key]: value,
-        }));
-    }
+        setForm(prev => {
+            const newForm = { ...prev, [key]: value };
 
-    // Fungsi untuk menghapus foto (mengembalikan ke tampilan awal kosong)
-    const removeFile = () => {
-        setSelectedFile(null);
-        setPreviewUrl(null);
-        setForm(prev => ({
-            ...prev,
-            url: null
-        }));
+            // Otomatisasi tingkat & poin jika jenis_pelanggaran diubah di mode edit
+            if (key === 'jenis_pelanggaran') {
+                const selectedMaster = MasterPelanggaranList.find(
+                    item => item.nama_pelanggaran === value
+                );
+                if (selectedMaster) {
+                    newForm.tingkat = selectedMaster.tingkat;
+                    newForm.poin = selectedMaster.poin_standar;
+                } else {
+                    newForm.tingkat = "";
+                    newForm.poin = 0;
+                }
+            }
+            return newForm;
+        });
     };
 
-    // Fungsi untuk menangkap base64 dari kamera dan mengubahnya menjadi File objek untuk diupload
+    const removeFile = async () => {
+        // Jika ada URL foto lama di database/form, hapus dari storage Supabase
+        if (form.url) {
+            const filePath = getStoragePathFromUrl(form.url);
+            if (filePath) {
+                try {
+                    const { error: deleteError } = await supabase.storage
+                        .from('fotopelanggaran')
+                        .remove([filePath]);
+
+                    if (deleteError) {
+                        console.error("Gagal menghapus file dari storage:", deleteError.message);
+                    } else {
+                        console.log("File lama berhasil dihapus dari storage");
+                    }
+                } catch (err) {
+                    console.error("Error saat menghapus file:", err);
+                }
+            }
+        }
+
+        // Reset state di aplikasi
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        setForm(prev => ({ ...prev, url: null }));
+    };
+
     const handleCameraCapture = (base64Image: string) => {
         setPreviewUrl(base64Image);
-
         fetch(base64Image)
             .then(res => res.blob())
             .then(blob => {
@@ -101,50 +168,65 @@ export default function EditPelanggaranDialog({
     };
 
     const handleSubmit = async () => {
-        if (!violation) return;
+    if (!violation) return;
 
-        try {
-            setUploading(true);
-            let uploadedUrl = form.url;
+    try {
+        setUploading(true);
+        let uploadedUrl = form.url;
+        let oldPhotoPathToDelete = null;
 
-            // Jika ada jepretan kamera baru yang tersimpan di selectedFile, upload ke Supabase Storage
-            if (selectedFile) {
-                const fileExt = "png";
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-                const filePath = `fotopelanggaran/${fileName}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('fotopelanggaran')
-                    .upload(filePath, selectedFile);
-
-                if (uploadError) {
-                    throw new Error('Gagal mengupload foto kamera baru: ' + uploadError.message);
-                }
-
-                const { data } = supabase.storage
-                    .from('fotopelanggaran')
-                    .getPublicUrl(filePath);
-
-                uploadedUrl = data.publicUrl;
+        // Jika user mengambil foto baru
+        if (selectedFile) {
+            // 1. Catat path foto lama jika sebelumnya sudah ada foto di database
+            if (violation.url) {
+                oldPhotoPathToDelete = getStoragePathFromUrl(violation.url);
             }
 
-            // Kirim pembaruan data ke fungsi onUpdate milik parent component
-            onUpdate({
-                ...violation,
-                ...form,
-                poin: Number(form.poin) || 0,
-                url: uploadedUrl, // Memastikan URL foto terbaru (atau null jika dihapus) ikut tersimpan
-            });
+            const fileExt = "png";
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+            const filePath = `fotopelanggaran/${fileName}`;
 
-            setSelectedFile(null);
-            onOpenChange(false);
-        } catch (error) {
-            console.error('Error updating violation:', error);
-            alert('Gagal memperbarui data dan mengunggah foto.');
-        } finally {
-            setUploading(false);
+            // 2. Upload foto baru
+            const { error: uploadError } = await supabase.storage
+                .from('fotopelanggaran')
+                .upload(filePath, selectedFile);
+
+            if (uploadError) {
+                throw new Error('Gagal mengupload foto kamera baru: ' + uploadError.message);
+            }
+
+            const { data } = supabase.storage
+                .from('fotopelanggaran')
+                .getPublicUrl(filePath);
+
+            uploadedUrl = data.publicUrl;
         }
-    };
+
+        // 3. Update data pelanggaran di database
+        onUpdate({
+            ...violation,
+            ...form,
+            poin: Number(form.poin) || 0,
+            url: uploadedUrl,
+        });
+
+        // 4. SETELAH DATABASE SUKSES UPDATE, Hapus foto lama dari storage jika ada penggantian
+        if (oldPhotoPathToDelete) {
+            await supabase.storage
+                .from('fotopelanggaran')
+                .remove([oldPhotoPathToDelete]);
+            console.log("Foto lama yang digantikan berhasil dibersihkan dari storage");
+        }
+
+        setSelectedFile(null);
+        onOpenChange(false);
+    } catch (error) {
+        console.error('Error updating violation:', error);
+        alert('Gagal memperbarui data dan mengunggah foto.');
+    } finally {
+        setUploading(false);
+    }
+};
 
     if (!violation) return null;
 
@@ -161,6 +243,7 @@ export default function EditPelanggaranDialog({
                 </DialogHeader>
 
                 <div className="py-4">
+                    {/* SEKARANG PROPS DATANYA SUDAH DIOPER DENGAN BENAR DI SINI */}
                     <FormFieldsPelanggaran
                         form={form}
                         onChange={handleChange}
@@ -169,8 +252,10 @@ export default function EditPelanggaranDialog({
                         previewUrl={previewUrl || undefined}
                         onRemoveFile={removeFile}
                         onCameraCapture={handleCameraCapture}
+                        masterPelanggaranList={MasterPelanggaranList}
                     />
                 </div>
+
                 <DialogFooter className="gap-2">
                     <DialogClose asChild>
                         <Button variant="outline" disabled={uploading}>
@@ -195,5 +280,5 @@ export default function EditPelanggaranDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    )
+    );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+// 1. PASTIKAN TAMBAHKAN useEffect DI SINI
+import { useState, useEffect } from "react";
 import {
     Dialog,
     DialogTrigger,
@@ -22,6 +23,13 @@ interface AddPelanggaranDialogProps {
     siswaList: Siswa[];
     onAdd: (violation: Omit<Pelanggaran, 'id' | 'created_at' | 'updated_at' | 'siswa' | 'dilaporkan_oleh_user'>) => Promise<void>;
     dataSiswa: Siswa[];
+}
+
+export interface MasterPelanggaran {
+    id: number;
+    nama_pelanggaran: string;
+    tingkat: string;
+    poin_standar: number;
 }
 
 const getInitialForm = (): PelanggaranFormData => {
@@ -51,10 +59,33 @@ export default function AddPelanggaranDialog({
     dataSiswa,
 }: AddPelanggaranDialogProps) {
     const [form, setForm] = useState<PelanggaranFormData>(getInitialForm());
+    // 2. TAMBAHKAN STATE UNTUK MENAMPUNG MASTER DATA
+    const [masterPelanggaranList, setMasterPelanggaranList] = useState<MasterPelanggaran[]>([]);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+
+    // 3. TAMBAHKAN LOGIKA FETCH DATA SUPABASE DI SINI
+    useEffect(() => {
+        const fetchMasterPelanggaran = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from("master_pelanggaran")
+                    .select("id, nama_pelanggaran, tingkat, poin_standar")
+                    .order("nama_pelanggaran", { ascending: true });
+
+                if (error) throw error;
+                setMasterPelanggaranList(data || []);
+            } catch (error) {
+                console.error("Gagal mengambil data master pelanggaran:", error);
+            }
+        };
+
+        if (open) {
+            fetchMasterPelanggaran();
+        }
+    }, [open]);
 
     const handleFormChange = <K extends keyof PelanggaranFormData>(key: K, value: PelanggaranFormData[K]) => {
         setForm(prev => {
@@ -63,19 +94,17 @@ export default function AddPelanggaranDialog({
                 [key]: value
             };
 
-            if (key === 'tingkat') {
-                switch (value) {
-                    case 'Ringan':
-                        newForm.poin = 5;
-                        break;
-                    case 'Sedang':
-                        newForm.poin = 8;
-                        break;
-                    case 'Berat':
-                        newForm.poin = 15;
-                        break;
-                    default:
-                        newForm.poin = 0;
+            // 4. OTOMATISASI PENGISIAN TINGKAT & POIN JIKA JENIS PELANGGARAN DIUBAH
+            if (key === 'jenis_pelanggaran') {
+                const selectedMaster = masterPelanggaranList.find(
+                    item => item.nama_pelanggaran === value
+                );
+                if (selectedMaster) {
+                    newForm.tingkat = selectedMaster.tingkat;
+                    newForm.poin = selectedMaster.poin_standar;
+                } else {
+                    newForm.tingkat = "";
+                    newForm.poin = 0;
                 }
             }
 
@@ -202,6 +231,7 @@ export default function AddPelanggaranDialog({
                         previewUrl={previewUrl || undefined}
                         onRemoveFile={removeFile}
                         onCameraCapture={handleCameraCapture}
+                        masterPelanggaranList={masterPelanggaranList} // 5. WAJIB DIKIRIMKAN KE FORM ANAK
                     />
                 </div>
 
